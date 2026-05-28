@@ -10,7 +10,7 @@
 // Output: ./screenshots/*.png (1920x1200) listas para README.
 // ════════════════════════════════════════════════════════════════════════════
 
-import { chromium } from "playwright";
+import { chromium, request as pwRequest } from "playwright";
 import path from "node:path";
 import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -46,38 +46,92 @@ const SHOTS = [
 const args   = new Set(process.argv.slice(2).flatMap(a => a.startsWith("--only=") ? a.slice(7).split(",") : []));
 const filter = args.size ? (s) => [...args].some(t => s.name.includes(t)) : () => true;
 
-async function loginViaSdk(page, audience) {
-  // Ejecuta fetch en el contexto de la app — la app guarda el access en su sessionStorage.
-  await page.evaluate(async ({ audience, email, password }) => {
-    const r = await fetch("http://localhost:8000/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ email, password, audience }),
+async function fetchGatewayToken(audience) {
+  // Login fuera del page context (sin CORS) — Playwright APIRequest.
+  const ctx = await pwRequest.newContext();
+  try {
+    const r = await ctx.post("http://localhost:8000/auth/login", {
+      data: { email: DEMO_EMAIL, password: DEMO_PASS, audience },
     });
-    if (!r.ok) throw new Error(`login failed: ${r.status}`);
+    if (!r.ok()) throw new Error(`login failed: ${r.status()}`);
     const { access_token } = await r.json();
-    sessionStorage.setItem("flk0s_access_token", access_token);
-    // Algunas apps usan otras keys — best-effort
-    sessionStorage.setItem("access_token", access_token);
-    localStorage.setItem("flk0s_access_token", access_token);
-  }, { audience, email: DEMO_EMAIL, password: DEMO_PASS });
+    return access_token;
+  } finally {
+    await ctx.dispose();
+  }
+}
+
+async function injectToken(page, accessToken, email) {
+  // Siembra el token en TODAS las storages que las apps consultan, y marca
+  // los onboarding tours como ya vistos para que no tapen los screenshots.
+  await page.evaluate(({ accessToken, email }) => {
+    sessionStorage.setItem("flk0s_access_token", accessToken);
+    sessionStorage.setItem("access_token", accessToken);
+    localStorage.setItem("flk0s_access_token", accessToken);
+
+    // CDP — zustand persist "cyberia-auth"
+    localStorage.setItem("cyberia-auth", JSON.stringify({
+      state: { accessToken, refreshToken: null, email },
+      version: 0,
+    }));
+
+    // RT — cookie + localStorage
+    document.cookie = `flk0s_rt_token=${accessToken}; path=/; max-age=${60 * 60 * 4}`;
+    localStorage.setItem("flk0s_rt_token", accessToken);
+
+    // Onboarding tours seen — patrones comunes (intercom-style, driver.js,
+    // react-joyride, custom). Best-effort: si la app no usa esa key, ignora.
+    const tourKeys = [
+      "flk0s-onboarding-seen", "onboarding-seen", "onboarding-done",
+      "tour-seen", "tour-done", "tour-completed",
+      "flk0s-cdp-onboarding", "flk0s-rt-onboarding",
+      "flk0s-reporter-onboarding", "flk0s-ai-onboarding",
+      "intro-seen", "first-visit", "welcome-tour-done",
+    ];
+    for (const k of tourKeys) {
+      localStorage.setItem(k, "true");
+    }
+  }, { accessToken, email });
+}
+
+async function dismissModals(page) {
+  // Estrategia conservadora — sólo botones que SEAN onboarding inequívoco
+  // (texto "Saltar tour" o data-testid específico). Evitamos selectores
+  // genéricos como "Saltar"/"Skip" porque pueden matchear otros elementos.
+  await page.keyboard.press("Escape").catch(() => {});
+  await page.waitForTimeout(150);
+  const skipSelectors = [
+    "button:has-text('Saltar tour')",
+    "button:has-text('Skip tour')",
+    "[data-testid='skip-tour']",
+    "[data-testid='close-onboarding']",
+  ];
+  for (const sel of skipSelectors) {
+    const btn = page.locator(sel).first();
+    if (await btn.count().catch(() => 0)) {
+      await btn.click({ timeout: 800 }).catch(() => {});
+      await page.waitForTimeout(200);
+    }
+  }
 }
 
 async function capture(browser, shot) {
   const ctx  = await browser.newContext({ viewport: VIEWPORT });
   const page = await ctx.newPage();
   try {
-    if (shot.audit) {
-      // pre-login en el origin de la app antes de navegar a la ruta protegida
+    if (shot.audience) {
+      // 1) login fuera del page (sin CORS) y 2) navega al origin para inyectar
+      const token = await fetchGatewayToken(`flk0s:${shot.audience}`);
       await page.goto(shot.url.replace(/\/[^/]*$/, "/"), { waitUntil: "domcontentloaded", timeout: 30_000 });
-      await loginViaSdk(page, `flk0s:${shot.audit}`);
+      await injectToken(page, token, DEMO_EMAIL);
     }
     await page.goto(shot.url, { waitUntil: "networkidle", timeout: 45_000 });
     if (shot.waitFor) {
       await page.waitForSelector(shot.waitFor, { timeout: 8_000 }).catch(() => {});
     }
     await page.waitForTimeout(800); // dejar que Framer Motion termine
+    await dismissModals(page);
+    await page.waitForTimeout(400);
     const out = path.join(OUT_DIR, `${shot.name}.png`);
     await page.screenshot({ path: out, fullPage: false });
     console.log(`  ✓ ${shot.name.padEnd(28)} → ${path.relative(process.cwd(), out)}`);
