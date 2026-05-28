@@ -1,0 +1,354 @@
+#!/usr/bin/env python3
+"""flk0s — CLI de gestión del ecosistema FLK0S.
+
+Comandos:
+  status                     → doctor (resumen + exit code)
+  bootstrap                  → orquesta arranque del stack
+  seed                       → corre seeds demo (CYB + RT + Reportes)
+  reset [--hard]             → presentation mode reset
+  sso login --aud=<app>      → emite access_token para una audience
+  sso whoami <token>         → introspecta un access_token
+  sso jwks                   → muestra JWKS del gateway
+  user list                  → lista usuarios del gateway (Postgres)
+  user create <email> <pwd>  → crea usuario nuevo
+  org list                   → lista organizations
+  events [--tail=N]          → últimos N auth_events
+  logs <service>             → docker compose logs del servicio
+  shell-completion           → instrucciones de autocomplete
+
+Ejemplos:
+  flk0s status
+  flk0s sso login --aud=cdp
+  flk0s events --tail=20
+  flk0s seed
+  flk0s reset --hard
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import urllib.request
+import urllib.error
+from pathlib import Path
+
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
+
+ROOT = Path(__file__).resolve().parents[2]
+SCRIPTS = Path(__file__).resolve().parent
+GW = os.environ.get("FLK0S_GATEWAY_URL", "http://localhost:8000")
+DEMO_EMAIL = os.environ.get("FLK0S_DEMO_EMAIL", "demo@flk0s.local")
+DEMO_PASSWORD = os.environ.get("FLK0S_DEMO_PASSWORD", "FLK0S-demo-2026")
+
+
+class C:
+    G = "\033[32m"; Y = "\033[33m"; R = "\033[31m"; B = "\033[1m"; DIM = "\033[2m"; END = "\033[0m"
+
+
+def _post(url: str, payload: dict, headers: dict | None = None) -> tuple[int, dict]:
+    req = urllib.request.Request(
+        url, data=json.dumps(payload).encode(), method="POST",
+        headers={"Content-Type": "application/json", **(headers or {})},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=8) as r:
+            return r.status, json.loads(r.read().decode() or "{}")
+    except urllib.error.HTTPError as e:
+        try:
+            return e.code, json.loads(e.read().decode())
+        except Exception:
+            return e.code, {"error": e.reason}
+    except Exception as e:  # noqa: BLE001
+        return 0, {"error": str(e)}
+
+
+def _get(url: str, headers: dict | None = None) -> tuple[int, dict | str]:
+    req = urllib.request.Request(url, headers=headers or {})
+    try:
+        with urllib.request.urlopen(req, timeout=6) as r:
+            body = r.read().decode()
+            try:
+                return r.status, json.loads(body)
+            except json.JSONDecodeError:
+                return r.status, body
+    except urllib.error.HTTPError as e:
+        return e.code, e.reason
+    except Exception as e:  # noqa: BLE001
+        return 0, str(e)
+
+
+def _pg_query(container: str, db: str, user: str, sql: str) -> str | None:
+    """Run psql query inside container, return stdout. None on error."""
+    try:
+        r = subprocess.run(
+            ["docker", "exec", "-i", container, "psql", "-U", user, "-d", db, "-tA", "-c", sql],
+            capture_output=True, text=True, timeout=10,
+        )
+        if r.returncode != 0:
+            return None
+        return r.stdout
+    except Exception:
+        return None
+
+
+def _gateway_login(audience: str = "shell") -> str | None:
+    code, body = _post(f"{GW}/auth/login", {
+        "email": DEMO_EMAIL, "password": DEMO_PASSWORD, "audience": f"flk0s:{audience}",
+    })
+    if code != 200:
+        return None
+    return body.get("access_token")
+
+
+# ─── Commands ──────────────────────────────────────────────────────────────
+
+def cmd_status(args):
+    return subprocess.call([sys.executable, str(SCRIPTS / "doctor.py")] + (["--verbose"] if args.verbose else []))
+
+
+def cmd_bootstrap(args):
+    extra = []
+    if args.no_seed: extra.append("--no-seed")
+    if args.no_obs:  extra.append("--no-obs")
+    return subprocess.call([sys.executable, str(SCRIPTS / "bootstrap.py")] + extra)
+
+
+def cmd_seed(args):
+    """Corre los 3 seeds demo (CYB, RT, Reportes)."""
+    targets = [
+        ("CYB",      ROOT / "FLK0S-CYB" / "scripts" / "seed-demo.py"),
+        ("RT",       ROOT / "FLK0S-RT" / "backend" / "scripts" / "seed-demo.py"),
+        ("Reportes", ROOT / "FLK0S-Reportes" / "backend" / "scripts" / "seed-demo.py"),
+    ]
+    for label, script in targets:
+        if not script.exists():
+            print(f"  {C.Y}!{C.END} {label}: script no encontrado ({script})")
+            continue
+        print(f"{C.B}→{C.END} seed {label}")
+        rc = subprocess.call([sys.executable, str(script)])
+        if rc == 0:
+            print(f"  {C.G}✓{C.END} {label} seeded")
+        else:
+            print(f"  {C.R}✗{C.END} {label} falló (rc={rc})")
+    return 0
+
+
+def cmd_reset(args):
+    script = SCRIPTS / ("presentation-reset.sh" if not sys.platform == "win32" else "presentation-reset.ps1")
+    extra = []
+    if args.hard:    extra.append("--hard" if sys.platform != "win32" else "-Hard")
+    if args.dry_run: extra.append("--dry-run" if sys.platform != "win32" else "-DryRun")
+    if sys.platform == "win32":
+        return subprocess.call(["powershell", "-NoProfile", "-File", str(script), *extra])
+    return subprocess.call(["bash", str(script), *extra])
+
+
+def cmd_sso_login(args):
+    """Emite access_token contra una audience."""
+    code, body = _post(f"{GW}/auth/login", {
+        "email": args.email, "password": args.password, "audience": f"flk0s:{args.aud}",
+    })
+    if code != 200:
+        print(f"{C.R}login falló{C.END} ({code}): {body}", file=sys.stderr)
+        return 1
+    if body.get("mfa_required"):
+        print(f"{C.Y}MFA challenge necesario{C.END} · mfa_token={body['mfa_token']}", file=sys.stderr)
+        print("Continúa con: flk0s sso mfa-login --mfa-token=... --code=...", file=sys.stderr)
+        return 2
+    if args.json:
+        print(json.dumps(body, indent=2))
+    else:
+        print(body["access_token"])
+    return 0
+
+
+def cmd_sso_whoami(args):
+    """Decodifica claims de un access_token (no verifica firma)."""
+    import base64
+    try:
+        parts = args.token.split(".")
+        if len(parts) != 3:
+            raise ValueError("token mal formado")
+        payload = parts[1] + "=" * (-len(parts[1]) % 4)
+        claims = json.loads(base64.urlsafe_b64decode(payload))
+        print(json.dumps(claims, indent=2))
+        return 0
+    except Exception as e:  # noqa: BLE001
+        print(f"{C.R}token inválido:{C.END} {e}", file=sys.stderr)
+        return 1
+
+
+def cmd_sso_jwks(args):
+    code, body = _get(f"{GW}/.well-known/jwks.json")
+    if code != 200:
+        print(f"{C.R}gateway no responde{C.END} ({code})", file=sys.stderr)
+        return 1
+    print(json.dumps(body, indent=2))
+    return 0
+
+
+def cmd_user_list(args):
+    rows = _pg_query("auth-gateway-gateway-db-1", "flk0s_auth", "flk0s_auth",
+                     "SELECT email || ' | ' || role || ' | ' || COALESCE(organization_id,'-') || ' | mfa=' || mfa_enabled FROM users ORDER BY created_at;")
+    if not rows:
+        print(f"{C.Y}no se pudieron leer users (¿gateway DB up?){C.END}", file=sys.stderr)
+        return 1
+    print(f"{C.B}email | role | org_id | mfa{C.END}")
+    print(rows.strip())
+    return 0
+
+
+def cmd_user_create(args):
+    """Crea via SQL directo (más rápido que /auth/register)."""
+    import secrets, hashlib
+    # Hashing via passlib bcrypt — instalado en el container
+    hash_sql = (
+        f"INSERT INTO users (id, email, name, hashed_password, role, organization_id, is_active, is_verified) "
+        f"VALUES ('{secrets.token_urlsafe(12)}', '{args.email}', '{args.name or args.email}', "
+        f"crypt('{args.password}', gen_salt('bf', 12)), '{args.role}', "
+        f"(SELECT id FROM organizations WHERE slug='{args.org}' LIMIT 1), true, true);"
+    )
+    # Necesitamos extensión pgcrypto. Intentamos cargarla primero (idempotente).
+    _pg_query("auth-gateway-gateway-db-1", "flk0s_auth", "flk0s_auth", "CREATE EXTENSION IF NOT EXISTS pgcrypto;")
+    out = _pg_query("auth-gateway-gateway-db-1", "flk0s_auth", "flk0s_auth", hash_sql)
+    if out is None:
+        print(f"{C.R}fallo al crear (¿org '{args.org}' existe?){C.END}", file=sys.stderr)
+        return 1
+    print(f"{C.G}✓{C.END} usuario {args.email} creado (rol={args.role}, org={args.org})")
+    return 0
+
+
+def cmd_org_list(args):
+    rows = _pg_query("auth-gateway-gateway-db-1", "flk0s_auth", "flk0s_auth",
+                     "SELECT slug || ' | ' || name || ' | active=' || is_active FROM organizations ORDER BY created_at;")
+    if not rows:
+        print(f"{C.Y}no se pudieron leer orgs{C.END}", file=sys.stderr)
+        return 1
+    print(f"{C.B}slug | name | active{C.END}")
+    print(rows.strip())
+    return 0
+
+
+def cmd_events(args):
+    n = args.tail or 20
+    rows = _pg_query(
+        "auth-gateway-gateway-db-1", "flk0s_auth", "flk0s_auth",
+        f"SELECT to_char(at, 'HH24:MI:SS') || ' | ' || rpad(event,18) || '| ' || rpad(COALESCE(email,'-'),24) || '| ' || COALESCE(audience,'-') || ' | ' || COALESCE(ip,'-') FROM auth_events ORDER BY at DESC LIMIT {n};",
+    )
+    if not rows:
+        print(f"{C.Y}no events{C.END}", file=sys.stderr)
+        return 1
+    print(f"{C.B}time     | event              | email                    | audience      | ip{C.END}")
+    print(rows.strip())
+    return 0
+
+
+def cmd_logs(args):
+    """docker compose logs del servicio especificado."""
+    mapping = {
+        "gateway": ROOT / "auth-gateway",
+        "cdp":     ROOT / "FLK0S-CYB",
+        "rt":      ROOT / "FLK0S-RT",
+        "ai":      ROOT / "FLK0S-AI",
+        "reportes": ROOT / "FLK0S-Reportes",
+        "obs":     ROOT / "infra" / "observability",
+    }
+    d = mapping.get(args.service)
+    if not d:
+        print(f"servicio desconocido. Opciones: {', '.join(mapping)}", file=sys.stderr)
+        return 1
+    return subprocess.call(["docker", "compose", "-f", str(d / "docker-compose.yml"), "logs", "--tail", str(args.tail or 50)])
+
+
+def cmd_completion(args):
+    sh = args.shell or os.environ.get("SHELL", "")
+    if "bash" in sh:
+        print("# Añade a tu ~/.bashrc:")
+        print('  eval "$(register-python-argcomplete flk0s)"')
+        print("# Requiere: pip install argcomplete")
+    else:
+        print("Autocomplete: instala argcomplete (pip) y configura tu shell.")
+    return 0
+
+
+# ─── Wiring ─────────────────────────────────────────────────────────────────
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(prog="flk0s", description=__doc__.split("\n", 1)[0])
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    s = sub.add_parser("status", help="resumen de salud del ecosistema (doctor)")
+    s.add_argument("--verbose", action="store_true")
+    s.set_defaults(func=cmd_status)
+
+    s = sub.add_parser("bootstrap", help="orquesta arranque del stack")
+    s.add_argument("--no-seed", action="store_true")
+    s.add_argument("--no-obs",  action="store_true")
+    s.set_defaults(func=cmd_bootstrap)
+
+    sub.add_parser("seed", help="corre seeds demo (CYB + RT + Reportes)").set_defaults(func=cmd_seed)
+
+    s = sub.add_parser("reset", help="presentation mode reset")
+    s.add_argument("--hard", action="store_true")
+    s.add_argument("--dry-run", action="store_true")
+    s.set_defaults(func=cmd_reset)
+
+    sso = sub.add_parser("sso", help="herramientas SSO").add_subparsers(dest="sso_cmd", required=True)
+    si = sso.add_parser("login", help="emite access_token contra una audience")
+    si.add_argument("--aud", required=True, choices=["cdp", "rt", "airt", "reporter", "shell"])
+    si.add_argument("--email",    default=DEMO_EMAIL)
+    si.add_argument("--password", default=DEMO_PASSWORD)
+    si.add_argument("--json", action="store_true")
+    si.set_defaults(func=cmd_sso_login)
+    sw = sso.add_parser("whoami", help="introspecta un access_token")
+    sw.add_argument("token")
+    sw.set_defaults(func=cmd_sso_whoami)
+    sub_jwks = sso.add_parser("jwks", help="muestra JWKS del gateway")
+    sub_jwks.set_defaults(func=cmd_sso_jwks)
+
+    user = sub.add_parser("user", help="gestión de usuarios").add_subparsers(dest="user_cmd", required=True)
+    user.add_parser("list", help="lista usuarios").set_defaults(func=cmd_user_list)
+    uc = user.add_parser("create", help="crea un usuario nuevo")
+    uc.add_argument("email"); uc.add_argument("password")
+    uc.add_argument("--name", default=None)
+    uc.add_argument("--role", default="operator", choices=["owner","admin","lead","engineer","analyst","operator","viewer","red_team_lead"])
+    uc.add_argument("--org",  default="acme-soc")
+    uc.set_defaults(func=cmd_user_create)
+
+    org = sub.add_parser("org", help="gestión de organizations").add_subparsers(dest="org_cmd", required=True)
+    org.add_parser("list", help="lista orgs").set_defaults(func=cmd_org_list)
+
+    e = sub.add_parser("events", help="últimos N auth_events del gateway")
+    e.add_argument("--tail", type=int, default=20)
+    e.set_defaults(func=cmd_events)
+
+    l = sub.add_parser("logs", help="docker logs de un servicio")
+    l.add_argument("service", choices=["gateway","cdp","rt","ai","reportes","obs"])
+    l.add_argument("--tail", type=int, default=50)
+    l.set_defaults(func=cmd_logs)
+
+    sh = sub.add_parser("shell-completion", help="instrucciones de autocomplete")
+    sh.add_argument("--shell", default=None)
+    sh.set_defaults(func=cmd_completion)
+
+    return p
+
+
+def main() -> int:
+    args = build_parser().parse_args()
+    return args.func(args) or 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(130)

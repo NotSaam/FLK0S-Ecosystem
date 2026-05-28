@@ -22,11 +22,13 @@ const DEMO_EMAIL = process.env.FLK0S_DEMO_EMAIL    ?? "demo@flk0s.local";
 const DEMO_PASS  = process.env.FLK0S_DEMO_PASSWORD ?? "FLK0S-demo-2026";
 
 // (name, url, optional pre-login flow)
+// fullPage:true → captura la página completa con scroll (sirve para mostrar
+//   el EcosystemSwitcher que en logins queda debajo del fold).
 const SHOTS = [
-  // — Logins
-  { name: "login-cdp",              url: "http://localhost:3100/login",    auth: false },
-  { name: "login-rt",               url: "http://localhost:3200/login",    auth: false },
-  { name: "login-ai",               url: "http://localhost:3300/login",    auth: false },
+  // — Logins (fullPage para incluir EcosystemSwitcher)
+  { name: "login-cdp",              url: "http://localhost:3100/login",    auth: false, fullPage: true },
+  { name: "login-rt",               url: "http://localhost:3200/login",    auth: false, fullPage: true },
+  { name: "login-ai",               url: "http://localhost:3300/login",    auth: false, fullPage: true },
   // — Hub
   { name: "hub-overview",           url: "http://localhost:3000/",         auth: false, waitFor: "h1, h2, [data-testid='kpi-grid']" },
   // — CDP
@@ -133,7 +135,7 @@ async function capture(browser, shot) {
     await dismissModals(page);
     await page.waitForTimeout(400);
     const out = path.join(OUT_DIR, `${shot.name}.png`);
-    await page.screenshot({ path: out, fullPage: false });
+    await page.screenshot({ path: out, fullPage: shot.fullPage === true });
     console.log(`  ✓ ${shot.name.padEnd(28)} → ${path.relative(process.cwd(), out)}`);
   } catch (e) {
     console.log(`  ✗ ${shot.name.padEnd(28)} → ${e.message?.slice(0, 80) ?? e}`);

@@ -47,37 +47,64 @@
 ## En curso 🚧
 
 ### Fase 3 — Cookie cross-subdomain + login delegado
-- Caddy + `*.flk0s.local` (`Caddyfile` listo, requiere setup manual del owner)
-- Cookie `flk0s_refresh` con `Domain=.flk0s.local`
-- Login de cada app delega al gateway (en vez de tener `/auth/login` propio)
-- SDK frontend (`@flk0s/auth-sdk`) ya soporta refresh automático en 401
+- ✅ Caddy v2.11.3 instalado + Caddyfile alineado con hub/cdp/rt/ai/reportes
+- ✅ `install-hosts.ps1` auto-elevate script listo
+- ✅ `.env.production.example` con `COOKIE_DOMAIN=.flk0s.local` + Secure/HSTS
+- 🚧 Aceptación del owner: ejecutar `install-hosts.ps1` + `caddy trust` + cambiar a `.env.production`
+- 🚧 Login de cada app delega al gateway (siguiente iteración del SDK)
+- ✅ SDK frontend (`@flk0s/auth-sdk`) ya soporta refresh automático en 401
 
 ### Demo & Showcase
-- Repo público `FLK0S-Ecosystem` con docs, diagramas, screenshots
-- Scripts plug-and-play (setup, doctor, bootstrap)
-- Presentation mode (reset demo idempotente)
-- README premium
+- ✅ Repo `FLK0S-Ecosystem` (privado por ahora) con docs, diagramas, screenshots
+- ✅ Scripts plug-and-play (setup, doctor, bootstrap, presentation-reset)
+- ✅ Presentation mode (reset demo idempotente)
+- ✅ README premium
+
+## Hecho en esta tirada (Fase 4 + extras) ✅
+
+### Fase 4 — RS256 + JWKS
+- ✅ Gateway opt-in vía `ALGORITHM=RS256` (default sigue HS256)
+- ✅ Clave RSA 3072 bits autogenerada en first-boot, persistida en volume
+- ✅ `/.well-known/jwks.json` sirviendo clave pública con `kid` determinista
+- ✅ `/.well-known/openid-configuration` (discovery doc OIDC-compatible)
+- ✅ Tokens RS256 con header `{alg, kid, typ}` correcto
+- ✅ Doc completa: `docs/sso-fase4-rs256.md` con guía migración por app
+- ⏳ Apps verifican RS256 vía JWKS (siguiente iteración por app)
+- ⏳ Multi-key rotation (cuando se necesite)
+
+### MFA TOTP
+- ✅ Endpoints `/auth/mfa/{enroll,verify-enroll,login,disable}`
+- ✅ TOTP RFC 6238 con pyotp + QR PNG inline (data URL)
+- ✅ 10 recovery codes generados al enrollment (single-use, bcrypt hashed)
+- ✅ Login flow modificado: si `user.mfa_enabled` → challenge en vez de token
+- ✅ Audit events: `mfa_enrolled / challenge / verified / recovery_used / failure / disabled`
+- ✅ Migración in-line idempotente de columnas `mfa_*`
+- ✅ Doc completa: `docs/mfa-totp.md`
+
+### CLI `flk0s`
+- ✅ Comandos: status, bootstrap, seed, reset, sso (login/whoami/jwks),
+  user list/create, org list, events, logs por servicio
+- ✅ Sin dependencies externas (argparse + stdlib)
+- ✅ Wrapper `flk0s.cmd` para Windows
+- ✅ Doc completa: `docs/cli.md`
 
 ## Próximos pasos ⏳
 
-### Fase 4 — RS256 + JWKS
-- Gateway firma con clave privada RSA, expone `/.well-known/jwks.json`
-- Apps verifican con clave pública (cacheada por TTL)
-- Rotación de claves sin downtime ni redespliegue
-
-### Federación de identidad
+### Federación de identidad (post-MVP)
 - OIDC: Google Workspace, Okta, Azure AD
 - SAML 2.0 (enterprise IdPs)
 - SCIM 2.0 para provisioning automático de tenants
 
-### MFA
-- TOTP (autenticador app)
-- WebAuthn (passkeys, Yubikey)
-- Recovery codes
+### MFA avanzado (post-TOTP)
+- ✅ TOTP (autenticador app) · ✅ Recovery codes
+- ⏳ WebAuthn (passkeys, Yubikey)
+- ⏳ Rate-limit dedicado en /auth/mfa/login
+- ⏳ UI front-end de enrollment en `/settings`
 
-### CLI
-- `flk0s` CLI para gestión de tenants/orgs/usuarios desde shell
-- `flk0s demo reset` para presentation mode desde terminal
+### CLI (entrega base hecha)
+- ✅ `flk0s` CLI completo (ver docs/cli.md)
+- ⏳ argcomplete bash/zsh
+- ⏳ `flk0s import/export` para bulk provisioning
 
 ### Hosted demo
 - Instancia pública en `demo.flk0s.tld` con auto-reset por sesión
