@@ -198,6 +198,6 @@ Detalle → [`docs/roadmap.md`](./docs/roadmap.md)
 
 ## Autor
 
-Construido por **@saamuuh** como portfolio técnico — full-stack + security + UX + observabilidad. Disponible para entrevistas técnicas y discusión arquitectónica.
+Construido por **Flako** como portfolio técnico — full-stack + security + UX + observabilidad. Disponible para entrevistas técnicas y discusión arquitectónica.
 
 > *Si esto se parece a una plataforma SaaS real, es porque la intención fue construir una.*
