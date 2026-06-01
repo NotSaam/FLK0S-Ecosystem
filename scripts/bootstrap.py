@@ -143,23 +143,37 @@ def start_stack(stack) -> tuple[str, bool, str]:
 
 
 def seed_demo(stack_label: str, dirpath: Path) -> str:
-    """Corre el seed dentro del container del API, si existe el módulo."""
+    """Corre el seed host-side de cada app contra su API (vía gateway SSO).
+
+    Cada app expone un script `seed-demo.py` idempotente que se autentica en el
+    gateway con la audiencia correspondiente y POSTea su dataset demo. Se ejecuta
+    con el mismo intérprete que bootstrap (`sys.executable`)."""
+    # (script relativo a la raíz del repo, api base)
     candidates = {
-        "FLK0S-CYB":      ("flk0s_cdp_api", "python", "-m", "seeds.demo_dataset"),
-        "FLK0S-RT":       ("flk0s-rt-backend-1", "python", "-m", "seeds.demo_dataset"),
-        "FLK0S-AI":       ("flk0s-ai-backend-1", "python", "-m", "seeds.demo_dataset"),
-        "FLK0S-Reportes": ("flk0s-reportes-backend-1", "python", "-m", "seeds.demo_dataset"),
+        "FLK0S-CYB":      ("FLK0S-CYB/scripts/seed-demo.py",          "http://localhost:8080/api/v1"),
+        "FLK0S-RT":       ("FLK0S-RT/backend/scripts/seed-demo.py",   "http://localhost:8200/api/v1"),
+        "FLK0S-AI":       ("FLK0S-AI/backend/scripts/seed-demo.py",   "http://localhost:8300/api/v1"),
+        "FLK0S-Reportes": ("FLK0S-Reportes/backend/scripts/seed-demo.py", "http://localhost:8400/api/v1"),
     }
     spec = candidates.get(stack_label)
     if not spec:
         return "no aplica"
-    container, *cmd = spec
-    rc, out = run(["docker", "exec", container, *cmd], capture=True)
+    rel_script, api_base = spec
+    script = ROOT / rel_script
+    if not script.exists():
+        return "script no encontrado (skip)"
+    rc, out = run([
+        sys.executable, str(script),
+        "--api", api_base,
+        "--gateway", GW,
+        "--email", DEMO_EMAIL,
+        "--password", DEMO_PASSWORD,
+    ], capture=True)
     if rc == 0:
         return "OK"
-    if "No module named 'seeds.demo_dataset'" in out:
-        return "no implementado (skip)"
-    return f"fallo rc={rc}"
+    if "No module named 'httpx'" in out or "ModuleNotFoundError" in out and "httpx" in out:
+        return "httpx no instalado en host (pip install httpx)"
+    return f"fallo rc={rc}: {out.strip().splitlines()[-1][:120] if out.strip() else ''}"
 
 
 def sso_smoke_test() -> dict:
@@ -223,7 +237,7 @@ def main() -> int:
         info("Cargando seeds demo (idempotente)")
         for label, dirpath, _h, _o in STACKS[2:]:
             result = seed_demo(label, dirpath)
-            (ok if result in ("OK", "no implementado (skip)", "no aplica") else warn)(f"seed {label}: {result}")
+            (ok if result in ("OK", "no aplica") else warn)(f"seed {label}: {result}")
 
     # 5) SSO smoke test
     info("SSO smoke test (gateway → 4 audiences → backends protegidos)")

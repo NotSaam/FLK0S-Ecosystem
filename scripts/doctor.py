@@ -67,6 +67,16 @@ OBS_ENDPOINTS = [
     ("Prometheus", "http://localhost:9091/-/healthy"),
 ]
 
+# Subdominios del ecosistema servidos por Caddy (networking enterprise). Opcional
+# en dev: requieren entradas en hosts (ver install-hosts.ps1).
+SUBDOMAINS = [
+    "hub.flk0s.local",
+    "cdp.flk0s.local",
+    "rt.flk0s.local",
+    "ai.flk0s.local",
+    "reportes.flk0s.local",
+]
+
 
 # ─── Result types ───────────────────────────────────────────────────────────
 
@@ -217,6 +227,50 @@ def check_obs(name: str, url: str) -> tuple[str, str]:
     return WARN, f"respondió {code}"
 
 
+def check_jwks() -> tuple[str, str]:
+    """El gateway debe publicar claves públicas RS256 para validación de JWT."""
+    code, body = _http_get(f"{GATEWAY_URL}/.well-known/jwks.json")
+    if code != 200:
+        return FAIL, f"JWKS no disponible ({code or 'sin conexión'})"
+    try:
+        keys = json.loads(body).get("keys", [])
+    except Exception:
+        return FAIL, "JWKS respondió pero JSON inválido"
+    if not keys:
+        return FAIL, "JWKS sin claves (los backends no podrán validar JWT)"
+    kty = keys[0].get("kty", "?")
+    return OK, f"{len(keys)} clave(s) · kty={kty}"
+
+
+def check_oidc() -> tuple[str, str]:
+    """OIDC discovery: issuer + jwks_uri coherentes para los backends."""
+    code, body = _http_get(f"{GATEWAY_URL}/.well-known/openid-configuration")
+    if code != 200:
+        return WARN, f"discovery no disponible ({code or 'sin conexión'})"
+    try:
+        j = json.loads(body)
+    except Exception:
+        return WARN, "discovery con JSON inválido"
+    if not j.get("jwks_uri") or not j.get("issuer"):
+        return WARN, "discovery sin issuer/jwks_uri"
+    return OK, f"issuer={j.get('issuer')}"
+
+
+def check_subdomain(host: str) -> tuple[str, str]:
+    """Resolución del subdominio Caddy. Opcional en dev (requiere entradas hosts)."""
+    try:
+        ip = socket.gethostbyname(host)
+    except OSError:
+        return WARN, f"{host} no resuelve (ver install-hosts.ps1)"
+    if not ip.startswith("127.") and ip != "::1":
+        return WARN, f"{host} → {ip} (¿esperado 127.0.0.1?)"
+    # Resuelve a loopback → intenta el handshake HTTPS vía Caddy (puede no estar arriba)
+    code, _ = _http_get(f"https://{host}", timeout=2)
+    if code == 0:
+        return WARN, f"{host} resuelve pero Caddy no responde"
+    return OK, f"{host} → {ip} · Caddy {code}"
+
+
 # ─── Runner ─────────────────────────────────────────────────────────────────
 
 class Colors:
@@ -272,12 +326,23 @@ def main() -> int:
         _emit(report, f"{label} /health",
               lambda l=label, h=health: check_app_health(l, h), args.verbose)
 
+    if not args.json:
+        print(f"{Colors.B}Identidad (RS256 · JWKS · OIDC){Colors.END}")
+    _emit(report, "JWKS · /.well-known/jwks.json", check_jwks, args.verbose)
+    _emit(report, "OIDC discovery", check_oidc, args.verbose)
+
     if not args.no_sso:
         if not args.json:
             print(f"{Colors.B}SSO end-to-end (gateway → backend protegido){Colors.END}")
         for label, aud, _fe, _h, prot in APPS:
             _emit(report, f"SSO · {aud}",
                   lambda a=aud, p=prot: check_sso_audience(a, p), args.verbose)
+
+    if not args.json:
+        print(f"{Colors.B}Networking (Caddy · subdominios){Colors.END}")
+    for host in SUBDOMAINS:
+        _emit(report, f"Subdominio {host}",
+              lambda h=host: check_subdomain(h), args.verbose)
 
     if not args.json:
         print(f"{Colors.B}Observabilidad{Colors.END}")

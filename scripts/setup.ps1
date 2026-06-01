@@ -48,6 +48,18 @@ if (-not (Test-Cmd "python")) {
 } else {
     $pyver = (python --version) -replace 'Python ',''
     Write-Ok "Python $pyver"
+
+    # httpx en el host: lo usan los seed-demo.py para poblar datos demo vía gateway.
+    python -c "import httpx" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        try {
+            python -m pip install --quiet --disable-pip-version-check httpx 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) { Write-Ok "httpx instalado (seeds demo)" }
+            else { Write-Warn "No se pudo instalar httpx · los seeds demo se saltarán" }
+        } catch { Write-Warn "No se pudo instalar httpx · los seeds demo se saltarán" }
+    } else {
+        Write-Ok "httpx disponible (seeds demo)"
+    }
 }
 
 # ── 2. Generar SECRET_KEY compartida ─────────────────────────────────────

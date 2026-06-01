@@ -56,6 +56,15 @@ else
 fi
 ok "Python $($PY --version | awk '{print $2}')"
 
+# httpx en el host: lo usan los seed-demo.py para poblar datos demo vía gateway.
+if "$PY" -c "import httpx" >/dev/null 2>&1; then
+  ok "httpx disponible (seeds demo)"
+elif "$PY" -m pip install --quiet --disable-pip-version-check httpx >/dev/null 2>&1; then
+  ok "httpx instalado (seeds demo)"
+else
+  warn "No se pudo instalar httpx · los seeds demo se saltarán"
+fi
+
 # ── 2. SECRET_KEY ─────────────────────────────────────────────────────────
 step "SECRET_KEY compartida"
 SECRET_FILE="$ROOT/.shared_secret.tmp"
