@@ -107,8 +107,8 @@ Detalle → [`docs/sso.md`](./docs/sso.md)
 |:---:|:---:|
 | ![Centro de Operaciones](./screenshots/hub-overview.png) | ![CDP — alertas](./screenshots/cdp-alerts.png) |
 | **Centro de Operaciones** — KPIs cross-ecosystem y salud en vivo | **FLK0S-CDP** — pipeline de alertas SOC |
-| ![RT — campañas](./screenshots/rt-campaigns.png) | ![AI — copilot](./screenshots/ai-copilot.png) |
-| **FLK0S-RT** — control de campañas y agentes | **FLK0S-AI** — copiloto táctico LLM-agnóstico |
+| ![RT — campañas](./screenshots/rt-campaigns.png) | ![AI — dashboard](./screenshots/ai-dashboard.png) |
+| **FLK0S-RT** — control de campañas y agentes | **FLK0S-AI** — panel de agentes y workflows |
 | ![Reportes — engagement](./screenshots/reportes-engagements.png) | ![CDP — dashboard](./screenshots/cdp-dashboard.png) |
 | **FLK0S-Reportes** — engagements y findings | **FLK0S-CDP** — dashboard SOC |
 | ![RT — dashboard](./screenshots/rt-dashboard.png) | ![Observabilidad — Grafana](./screenshots/grafana-overview.png) |
@@ -163,12 +163,19 @@ Detalle → [`docs/demo-mode.md`](./docs/demo-mode.md)
 
 ## Roadmap
 
-- ✅ **Fase 1 — SSO core**: shared secret + JWT por audience + JIT por app
-- ✅ **Fase 2 — Identity DB**: Postgres dedicado al gateway con orgs/users/audit/refresh sessions
-- 🚧 **Fase 3 — Cookie cross-subdomain + delegated login**: Caddy + `*.flk0s.local`, login de cada app delegado al gateway
-- ⏳ **Fase 4 — RS256 + JWKS**: rotación de claves sin secreto compartido
-- ⏳ **Hosted demo**: instancia pública con auto-reset por sesión
-- ⏳ **CLI**: `flk0s` para gestionar tenants / orgs / usuarios desde shell
+**Entregado — v1.1**
+- ✅ **SSO único** — JWT por audience + token-exchange + JIT provisioning por app
+- ✅ **Identidad en Postgres** — orgs, usuarios, RBAC, audit trail y refresh sessions
+- ✅ **MFA TOTP** — enrolamiento, verificación y códigos de recuperación
+- ✅ **Sesión cross-subdominio** — Caddy + `*.flk0s.local`, login centralizado
+- ✅ **Hub con datos vivos** — KPIs, actividad y alertas agregadas en tiempo real
+- ✅ **Ticketing unificado** — cross-app, con trazabilidad al origen
+- ✅ **Observabilidad e2e** — OpenTelemetry, Prometheus, Grafana, Tempo
+
+**Evolución futura**
+- **RS256 + JWKS** — rotación de claves sin secreto compartido
+- **SaaS gestionado** — instancia hospedada multi-tenant con SSO externo (OIDC/SAML)
+- **CLI `flk0s`** — gestión de tenants / orgs / usuarios desde shell
 
 Detalle → [`docs/roadmap.md`](./docs/roadmap.md)
 
@@ -190,20 +197,22 @@ Detalle → [`docs/roadmap.md`](./docs/roadmap.md)
 
 | Componente | Estado | Notas |
 |---|---|---|
-| Auth Gateway | ✅ Live | v0.2.0 · Postgres · audit |
-| FLK0S-CDP | ✅ Live | SOC pipeline · multi-tenant |
-| FLK0S-RT | ✅ Live | campañas + agentes |
-| FLK0S-AI | ✅ Live | copiloto + RAG |
-| FLK0S-Reportes | ✅ Live | engagements + findings |
-| Centro de Operaciones | ✅ Live | hub cross-app |
-| Observabilidad | ✅ Live | 4 backends instrumentados |
-| Caddy subdomains | 🚧 Owner setup | manual paths documentados |
-| Demo dataset | ✅ Seed idempotente | reset on-demand |
+| Auth Gateway | ✅ Operativo | v1.1 · Postgres · SSO · MFA · audit |
+| FLK0S-CDP | ✅ Operativo | SOC pipeline · multi-tenant |
+| FLK0S-RT | ✅ Operativo | campañas + agentes + infraestructura |
+| FLK0S-AI | ✅ Operativo | agentes + workflows + copiloto |
+| FLK0S-Reportes | ✅ Operativo | engagements + findings + export |
+| Centro de Operaciones | ✅ Operativo | hub cross-app con datos vivos |
+| Ticketing unificado | ✅ Operativo | cross-app con trazabilidad |
+| Observabilidad | ✅ Operativo | 4 backends instrumentados |
+| Networking (Caddy/subdominios) | ✅ Soportado | localhost y enterprise |
+| Demo dataset | ✅ Operativo | seed idempotente · reset on-demand |
 
 ---
 
 ## Autor
 
-Construido por **@saamuuh** como portfolio técnico — full-stack + security + UX + observabilidad. Disponible para entrevistas técnicas y discusión arquitectónica.
+Diseñado y desarrollado por **@saamuuh** — arquitectura, identidad/SSO, los cuatro módulos, el Hub,
+el ticketing unificado y la capa de observabilidad. Full-stack · security · UX · observabilidad.
 
-> *Si esto se parece a una plataforma SaaS real, es porque la intención fue construir una.*
+> *Una plataforma SaaS de ciberseguridad construida de extremo a extremo.*
