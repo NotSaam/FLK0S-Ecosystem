@@ -2,16 +2,21 @@
 
 # FLK0S
 
-### Tactical cybersecurity platform — engineered as one operating system, not five tools.
+### Cybersecurity Operations Platform — un solo ecosistema, no cinco herramientas.
 
 [![Version](https://img.shields.io/badge/version-1.1-0d9488?style=flat-square)]()
-[![Status](https://img.shields.io/badge/status-Release%20Candidate-22c55e?style=flat-square)]()
 [![Apps](https://img.shields.io/badge/apps-4%20%2B%20hub-purple?style=flat-square)]()
 [![Security](https://img.shields.io/badge/security-SSO%20%C2%B7%20MFA%20%C2%B7%20RBAC-7c3aed?style=flat-square)]()
 [![SSO](https://img.shields.io/badge/SSO-cross--app-success?style=flat-square)]()
 [![Stack](https://img.shields.io/badge/stack-Next.js%20%2B%20FastAPI%20%2B%20Postgres-blue?style=flat-square)]()
 [![Observability](https://img.shields.io/badge/observability-OTel%20%2B%20Prometheus%20%2B%20Grafana-orange?style=flat-square)]()
-[![License](https://img.shields.io/badge/license-Showcase-lightgrey?style=flat-square)](LICENSE)
+
+<br/>
+
+**[🌐 Portfolio](https://notsaam.github.io/portfolio/)** &nbsp;·&nbsp; **[💼 LinkedIn](https://www.linkedin.com/in/notsaam)**
+
+[![Portfolio](https://img.shields.io/badge/Portfolio-notsaam.github.io-0ea5e9?style=for-the-badge&logo=github&logoColor=white)](https://notsaam.github.io/portfolio/)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-notsaam-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/notsaam)
 
 </div>
 
@@ -212,7 +217,11 @@ Detalle → [`docs/roadmap.md`](./docs/roadmap.md)
 
 ## Autor
 
-Diseñado y desarrollado por **@saamuuh** — arquitectura, identidad/SSO, los cuatro módulos, el Hub,
+Diseñado y desarrollado por **Samu** — arquitectura, identidad/SSO, los cuatro módulos, el Hub,
 el ticketing unificado y la capa de observabilidad. Full-stack · security · UX · observabilidad.
 
-> *Una plataforma SaaS de ciberseguridad construida de extremo a extremo.*
+🌐 **Portfolio** → https://notsaam.github.io/portfolio/
+💼 **LinkedIn** → https://www.linkedin.com/in/notsaam
+
+> *Una plataforma de operaciones de ciberseguridad construida de extremo a extremo.*
+> *Disponible para entrevistas técnicas y discusión arquitectónica.*
