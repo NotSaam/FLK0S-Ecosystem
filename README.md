@@ -1,5 +1,7 @@
 <div align="center">
 
+[![Stars](https://img.shields.io/github/stars/NotSaam/FLK0S-Ecosystem?style=flat-square&color=22d3ee&logo=github&label=stars)](https://github.com/NotSaam/FLK0S-Ecosystem/stargazers) ![Views](https://visitor-badge.laobi.icu/badge?page_id=NotSaam.FLK0S-Ecosystem&label=views&color=22d3ee)
+
 # FLK0S
 
 ### Cybersecurity Operations Platform — un solo ecosistema, no cinco herramientas.
