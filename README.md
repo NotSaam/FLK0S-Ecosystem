@@ -4,8 +4,10 @@
 
 ### Tactical cybersecurity platform — engineered as one operating system, not five tools.
 
-[![Status](https://img.shields.io/badge/status-active%20development-00d9ff?style=flat-square)]()
+[![Version](https://img.shields.io/badge/version-1.1-0d9488?style=flat-square)]()
+[![Status](https://img.shields.io/badge/status-Release%20Candidate-22c55e?style=flat-square)]()
 [![Apps](https://img.shields.io/badge/apps-4%20%2B%20hub-purple?style=flat-square)]()
+[![Security](https://img.shields.io/badge/security-SSO%20%C2%B7%20MFA%20%C2%B7%20RBAC-7c3aed?style=flat-square)]()
 [![SSO](https://img.shields.io/badge/SSO-cross--app-success?style=flat-square)]()
 [![Stack](https://img.shields.io/badge/stack-Next.js%20%2B%20FastAPI%20%2B%20Postgres-blue?style=flat-square)]()
 [![Observability](https://img.shields.io/badge/observability-OTel%20%2B%20Prometheus%20%2B%20Grafana-orange?style=flat-square)]()
@@ -107,8 +109,12 @@ Detalle → [`docs/sso.md`](./docs/sso.md)
 | **Centro de Operaciones** — KPIs cross-ecosystem y salud en vivo | **FLK0S-CDP** — pipeline de alertas SOC |
 | ![RT — campañas](./screenshots/rt-campaigns.png) | ![AI — copilot](./screenshots/ai-copilot.png) |
 | **FLK0S-RT** — control de campañas y agentes | **FLK0S-AI** — copiloto táctico LLM-agnóstico |
-| ![Reportes — engagement](./screenshots/reportes-engagement.png) | ![SSO — switcher](./screenshots/login-switcher.png) |
-| **FLK0S-Reportes** — engagements y findings | **Login estándar** — cross-app switcher con accent |
+| ![Reportes — engagement](./screenshots/reportes-engagements.png) | ![CDP — dashboard](./screenshots/cdp-dashboard.png) |
+| **FLK0S-Reportes** — engagements y findings | **FLK0S-CDP** — dashboard SOC |
+| ![RT — dashboard](./screenshots/rt-dashboard.png) | ![Observabilidad — Grafana](./screenshots/grafana-overview.png) |
+| **FLK0S-RT** — panel de operaciones | **Observabilidad** — Grafana e2e |
+| ![Login — CDP](./screenshots/login-cdp.png) | ![Login — RT](./screenshots/login-rt.png) |
+| **Login CDP** — accent cian | **Login RT** — accent rojo |
 
 Galería completa → [`screenshots/`](./screenshots)
 
